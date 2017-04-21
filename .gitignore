@@ -101,8 +101,5 @@ ENV/
 CNN_Tensorflow_new_pooling.py
 Challenge_TF.ipynb
 data/
-Would skip repository doc_and_examples/TensorFlow-Examples
-Would skip repository doc_and_examples/tf-stanford-tutorials
-Would skip repository doc_and_examples/models
 summaries/
 /doc_and_examples/

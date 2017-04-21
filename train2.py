@@ -15,21 +15,21 @@ summaries_dir = "/home/axel/challenge-mdi341/summaries"
 
 # Store layers weight & bias
 weights = {
-    'wc1': tf.Variable(tf.truncated_normal([5, 5, 1, 8], stddev=0.05), name='wc1'),
-    'wc2': tf.Variable(tf.truncated_normal([4, 4, 8, 16], stddev=0.05), name='wc2'),
-    'wc3': tf.Variable(tf.truncated_normal([3, 3, 16, 32], stddev=0.05), name='wc3'),
-    'wc4': tf.Variable(tf.truncated_normal([2, 2, 32, 64], stddev=0.05), name='wc4'),
-    'wc5': tf.Variable(tf.truncated_normal([2, 2, 64, 128], stddev=0.05), name='wc5'),
+    'wc1': tf.Variable(tf.truncated_normal([5, 5, 1, 7], stddev=0.05), name='wc1'),
+    'wc2': tf.Variable(tf.truncated_normal([4, 4, 7, 16], stddev=0.05), name='wc2'),
+    'wc3': tf.Variable(tf.truncated_normal([3, 3, 16, 24], stddev=0.05), name='wc3'),
+    'wc4': tf.Variable(tf.truncated_normal([2, 2, 24, 32], stddev=0.05), name='wc4'),
+    'wc5': tf.Variable(tf.truncated_normal([2, 2, 32, 64], stddev=0.05), name='wc5'),
     # 'wc6': tf.Variable(tf.truncated_normal([5, 5, 24, 24], stddev=0.05), name='wc6'),
-    'wfc': tf.Variable(tf.truncated_normal([128, 128]), name='wfc')
+    'wfc': tf.Variable(tf.truncated_normal([64, 128]), name='wfc')
 }
 
 biases = {
-    'bc1': tf.Variable(tf.truncated_normal([8]), name='bc1'),
+    'bc1': tf.Variable(tf.truncated_normal([7]), name='bc1'),
     'bc2': tf.Variable(tf.truncated_normal([16]), name='bc2'),
-    'bc3': tf.Variable(tf.truncated_normal([32]), name='bc3'),
-    'bc4': tf.Variable(tf.truncated_normal([64]), name='bc4'),
-    'bc5': tf.Variable(tf.truncated_normal([128]), name='bc5'),
+    'bc3': tf.Variable(tf.truncated_normal([24]), name='bc3'),
+    'bc4': tf.Variable(tf.truncated_normal([32]), name='bc4'),
+    'bc5': tf.Variable(tf.truncated_normal([64]), name='bc5'),
     # 'bc6': tf.Variable(tf.truncated_normal([24]), name='bc6'),
     'bfc': tf.Variable(tf.truncated_normal([128]), name='bfc')
 }
@@ -47,12 +47,12 @@ def get_total_param():
     return total_parameters
 
 
-def conv_layer(x, w_key, b_key, k=2):
+def conv_layer(x, w_key, b_key, k=1, padding='SAME'):
     with tf.variable_scope('convolution_layer'):
         conv = tf.nn.conv2d(input=x,
                             filter=weights[w_key],
                             strides=[1, k, k, 1],
-                            padding='SAME') + biases[b_key]
+                            padding=padding) + biases[b_key]
         relu = tf.nn.relu(conv, 'activation')
     print(relu)
     return relu
@@ -87,12 +87,12 @@ def predict(x):
     pool2 = pool_layer(conv2)
     conv3 = conv_layer(pool2, 'wc3', 'bc3')
     pool3 = pool_layer(conv3)
-    conv4 = conv_layer(pool3, 'wc4', 'bc4')
+    conv4 = conv_layer(pool3, 'wc4', 'bc4', padding='VALID')
     pool4 = pool_layer(conv4)
     conv5 = conv_layer(pool4, 'wc5', 'bc5')
     pool5 = pool_layer(conv5)
 
-    return fully_connected_layer(pool5, 128, 'wfc', 'bfc')
+    return fully_connected_layer(pool5, 64, 'wfc', 'bfc')
 
 
 # tf Graph input
