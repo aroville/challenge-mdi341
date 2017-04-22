@@ -2,11 +2,11 @@ import tensorflow as tf
 from time import time
 
 # Parameters
-starter_learning_rate = 0.001
+starter_learning_rate = 1e-4
 training_iters = 1000000
-batch_size = 1000
+batch_size = 2000
 train_display_step = 10
-valid_display_step = 100
+valid_display_step = 50
 image_size = 48
 image_dim = 48*48
 template_dim = 128
@@ -14,25 +14,31 @@ num_channels = 1
 summaries_dir = "/home/axel/challenge-mdi341/summaries"
 
 # Store layers weight & bias
-weights = {
-    'wc1': tf.Variable(tf.truncated_normal([5, 5, 1, 7], stddev=0.05), name='wc1'),
-    'wc2': tf.Variable(tf.truncated_normal([4, 4, 7, 16], stddev=0.05), name='wc2'),
-    'wc3': tf.Variable(tf.truncated_normal([3, 3, 16, 24], stddev=0.05), name='wc3'),
-    'wc4': tf.Variable(tf.truncated_normal([2, 2, 24, 32], stddev=0.05), name='wc4'),
-    'wc5': tf.Variable(tf.truncated_normal([2, 2, 32, 64], stddev=0.05), name='wc5'),
-    # 'wc6': tf.Variable(tf.truncated_normal([5, 5, 24, 24], stddev=0.05), name='wc6'),
-    'wfc': tf.Variable(tf.truncated_normal([64, 128]), name='wfc')
-}
+out_channels = [1, 6, 16, 24, 32, 64, 128]
+k_sizes = [7, 4, 3,  2,  2]
 
-biases = {
-    'bc1': tf.Variable(tf.truncated_normal([7]), name='bc1'),
-    'bc2': tf.Variable(tf.truncated_normal([16]), name='bc2'),
-    'bc3': tf.Variable(tf.truncated_normal([24]), name='bc3'),
-    'bc4': tf.Variable(tf.truncated_normal([32]), name='bc4'),
-    'bc5': tf.Variable(tf.truncated_normal([64]), name='bc5'),
-    # 'bc6': tf.Variable(tf.truncated_normal([24]), name='bc6'),
-    'bfc': tf.Variable(tf.truncated_normal([128]), name='bfc')
-}
+
+def get_weight_conv(i):
+    k = k_sizes[i]
+    in_dim = out_channels[i]
+    out_dim = out_channels[i+1]
+    return tf.Variable(tf.truncated_normal([k, k, in_dim, out_dim],
+                                           stddev=0.05), name='wcv'+str(i+1))
+
+
+def get_weight_fc(i):
+    in_dim = out_channels[i] * k_sizes[i-1]**2
+    out_dim = out_channels[i+1]
+    return tf.Variable(tf.truncated_normal([in_dim, out_dim]), name='wfc')
+
+
+def get_bias(i):
+    dim = out_channels[i+1]
+    return tf.Variable(tf.truncated_normal([dim]), name='b'+str(i))
+
+w = [get_weight_conv(i) for i in range(5)]
+w.append(get_weight_fc(5))
+b = [get_bias(i) for i in range(6)]
 
 
 def get_total_param():
@@ -47,52 +53,39 @@ def get_total_param():
     return total_parameters
 
 
-def conv_layer(x, w_key, b_key, k=1, padding='SAME'):
+def conv_layer(x, i, p='SAME'):
+    s = [1, 1, 1, 1]
     with tf.variable_scope('convolution_layer'):
-        conv = tf.nn.conv2d(input=x,
-                            filter=weights[w_key],
-                            strides=[1, k, k, 1],
-                            padding=padding) + biases[b_key]
-        relu = tf.nn.relu(conv, 'activation')
-    print(relu)
-    return relu
+        conv = tf.nn.conv2d(input=x, filter=w[i], strides=s, padding=p) + b[i]
+        return tf.nn.relu(conv, 'activation')
 
 
-def pool_layer(conv, k=2):
+def pool_layer(conv):
+    m = [1, 2, 2, 1]
+    print(conv)
     with tf.variable_scope('pooling_layer'):
-        pool = tf.nn.max_pool(value=conv,
-                              ksize=[1, k, k, 1],
-                              strides=[1, k, k, 1],
-                              padding='SAME')
-    print(pool)
-    return pool
+        pool = tf.nn.max_pool(value=conv, ksize=m, strides=m, padding='SAME')
+        print(pool)
+        return pool
 
 
-def fully_connected_layer(pool, size, w_key, b_key):
+def fully_connected_layer(pool, i):
     with tf.variable_scope('fully_connected_layer'):
-        fc = tf.reshape(pool, [-1, size])
-        fc = tf.matmul(fc, weights[w_key]) + biases[b_key]
-        relu = tf.nn.relu(fc)
+        fc = tf.reshape(pool, [-1, int(w[i].shape[0])])
+        relu = tf.nn.relu(tf.matmul(fc, w[i]) + b[i])
     print(relu)
     return relu
 
 
 def predict(x):
-    # Reshape input picture
     x = tf.reshape(x, shape=[-1, image_size, image_size, num_channels])
-
-    conv1 = conv_layer(x, 'wc1', 'bc1')
-    pool1 = pool_layer(conv1)
-    conv2 = conv_layer(pool1, 'wc2', 'bc2')
-    pool2 = pool_layer(conv2)
-    conv3 = conv_layer(pool2, 'wc3', 'bc3')
-    pool3 = pool_layer(conv3)
-    conv4 = conv_layer(pool3, 'wc4', 'bc4', padding='VALID')
-    pool4 = pool_layer(conv4)
-    conv5 = conv_layer(pool4, 'wc5', 'bc5')
-    pool5 = pool_layer(conv5)
-
-    return fully_connected_layer(pool5, 64, 'wfc', 'bfc')
+    l1 = pool_layer(conv_layer(x, 0))
+    l2 = pool_layer(conv_layer(l1, 1))
+    l3 = pool_layer(conv_layer(l2, 2))
+    l4 = pool_layer(conv_layer(l3, 3, p='VALID'))
+    l5 = pool_layer(conv_layer(l4, 4))
+    fc = fully_connected_layer(l5, 5)
+    return fc
 
 
 # tf Graph input
@@ -106,12 +99,13 @@ def train(train_set, valid_set, test_set):
     # Define loss and optimizer
     cost = tf.reduce_mean(tf.squared_difference(pred, y))
     global_step = tf.Variable(0, trainable=False)
-    learning_rate = tf.train.exponential_decay(
-        learning_rate=starter_learning_rate,
-        global_step=global_step,
-        decay_steps=5000,
-        decay_rate=0.96,
-        staircase=True)
+    # learning_rate = tf.train.exponential_decay(
+    #     learning_rate=starter_learning_rate,
+    #     global_step=global_step,
+    #     decay_steps=100,
+    #     decay_rate=0.8,
+    #     staircase=True)
+    learning_rate = 1e-4
     tf.summary.scalar('learning_rate', learning_rate)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)\
         .minimize(cost, global_step=global_step)
@@ -127,6 +121,8 @@ def train(train_set, valid_set, test_set):
         writer = tf.summary.FileWriter(summaries_dir, sess.graph)
 
         sess.run(init)
+        saver = tf.train.Saver()
+
         step = 1
         batch_valid_x, batch_valid_y = valid_set.next_batch(10000)
         t0 = time()
@@ -134,7 +130,8 @@ def train(train_set, valid_set, test_set):
         # Keep training until reach max iterations
         while step < training_iters:
             batch_x, batch_y = train_set.next_batch(batch_size)
-            _, summary = sess.run([optimizer, summary_op], feed_dict={x: batch_x, y: batch_y})
+            _, summary = sess.run([optimizer, summary_op],
+                                  feed_dict={x: batch_x, y: batch_y})
             writer.add_summary(summary, step)
 
             if step % train_display_step == 0:
@@ -150,18 +147,13 @@ def train(train_set, valid_set, test_set):
                         y: batch_valid_y
                     })
                     tf.summary.scalar('valid_loss', valid_loss)
-                    print("---------- valid loss: {:5.9f} ({:3.2f}s)".format(valid_loss, time() - t0))
+                    print("EPOCH {} valid loss: {:5.9f} ({:3.2f}s)".format(
+                        train_set.epochs_completed+1, valid_loss, time() - t0))
+                    print('learning rate:', learning_rate.eval())
+                    saver.save(sess, 'checkpoints/model.ckpt')
                     t0 = time()
             step += 1
         print("Optimization Finished!")
-
-        # Calculate accuracy for 256 mnist test images
-        print("Testing Accuracy:",
-              sess.run(cost, feed_dict={x: valid_set.images,
-                                        y: valid_set.labels}))
-
-        saver = tf.train.Saver()
-        saver.save(sess, './model.ckpt')
 
         sess.run(tf.global_variables_initializer())
 

@@ -10,12 +10,12 @@ class DataSet:
     def __init__(self, suffix, n_img, include_test=True, scaler=None):
         self.suffix = suffix
         self.n_img = n_img
-        # self.scaler = scaler
+        self.scaler = scaler
         self.images = self.load_data_from_file('data', IMG_SIZE, np.uint8)
         if include_test:
             self.labels = self.load_data_from_file('fv', LBL_SIZE, np.float32)
         self._index_in_epoch = 0
-        self._epochs_completed = 0
+        self.epochs_completed = 0
 
     def load_data_from_file(self, prefix, size, dtype):
         """
@@ -33,10 +33,10 @@ class DataSet:
         with open(file, 'rb') as f:
             args = {'file': f, 'dtype': dtype, 'count': n_img * IMG_SIZE}
             d = np.fromfile(**args).astype(np.float32).reshape(n_img, size)
-            # if prefix == 'data':
-            #     if self.scaler is None:
-            #         self.scaler = preprocessing.StandardScaler().fit(d)
-            #     return self.scaler.transform(d)
+            if prefix == 'data':
+                if self.scaler is None:
+                    self.scaler = preprocessing.StandardScaler().fit(d)
+                return self.scaler.transform(d)
             return d
 
     def next_batch(self, batch_size=100):
@@ -45,7 +45,7 @@ class DataSet:
         self._index_in_epoch += batch_size
         if self._index_in_epoch > self.n_img:
             # Finished epoch
-            self._epochs_completed += 1
+            self.epochs_completed += 1
             # print('Finished epoch number', self._epochs_completed)
 
             # Shuffle the data
